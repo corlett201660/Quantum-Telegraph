@@ -1,0 +1,19 @@
+# Server Logs
+*.log
+debug.log
+error_log
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE / Editor Files
+.vscode/
+.idea/
+*.suo
+*.swp
