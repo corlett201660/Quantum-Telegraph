@@ -109,7 +109,7 @@ function melle_vr_shortcode($atts) {
             wpValidateUrl: "<?php echo $validate_url; ?>",
             beatmapDir: "<?php echo $beatmap_dir; ?>",
             assetDir: "<?php echo $asset_dir; ?>",
-            icecastBaseUrl: "https://qrjournal.org/icecast/",
+            icecastBaseUrl: "<?php echo esc_js(get_option('melle_vr_icecast_base_url', 'https://qrjournal.org/icecast/')); ?>",
             pluginUrl: "<?php echo $plugin_url; ?>",
             directChannel: "<?php echo esc_js($direct_channel); ?>",
             directTrack: "<?php echo esc_js($direct_track); ?>",

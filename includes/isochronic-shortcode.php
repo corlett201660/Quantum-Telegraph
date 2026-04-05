@@ -7,10 +7,25 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
-// Wrap in init hook to ensure early registration and prevent plain-text rendering
+// Register the shortcode safely on init
 add_action( 'init', function() {
     add_shortcode( 'isochronic_core', 'qrq_isochronic_engine_shortcode' );
 });
+
+// Intercept the page load and force our custom fullscreen template
+add_filter( 'template_include', 'qrq_force_isochronic_template', 99 );
+function qrq_force_isochronic_template( $template ) {
+    if ( is_page() ) {
+        global $post;
+        if ( has_shortcode( $post->post_content, 'isochronic_core' ) ) {
+            $plugin_template = MELLE_VR_PATH . 'includes/isochronic-template.php';
+            if ( file_exists( $plugin_template ) ) {
+                return $plugin_template;
+            }
+        }
+    }
+    return $template;
+}
 
 function qrq_isochronic_engine_shortcode() {
     ob_start();
@@ -87,7 +102,7 @@ function qrq_isochronic_engine_shortcode() {
             bottom: 0 !important;
             width: 100% !important; 
             height: 100% !important; 
-            z-index: 999999 !important; /* Force above all theme headers/footers */
+            z-index: 999999 !important; 
             margin: 0 !important;
             padding: 0 !important;
             transform: none !important;
