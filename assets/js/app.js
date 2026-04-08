@@ -1,5 +1,5 @@
 /**
- * Melle Well VR - Core Game Engine (Unified & Safari Patched)
+ * Quantum Telegraph - Core Game Engine (Unified & Safari Patched)
  * Handles WebGL rendering, WebXR, Audio Analysis, Gamepad, Touch, Multiplayer, and Input Diagnostics.
  * Interwoven with Matomo Custom Event Tracking.
  */
@@ -30,7 +30,6 @@ const config = window.MelleVRConfig || {
     directChannel: "",
     directTrack: "",
     directMp3: "",
-    homeUrl: "/community",
     vrAllowedMounts: [],
     vrExcludedMounts: ['admin', 'fallback'],
     restrictedMounts: [],
@@ -83,6 +82,7 @@ let mouseTapTimes = [];
 let statusInput = { keyboard: false, tilt: false, gamepad: false, touch: false, gamepadName: "" };
 
 let currentSong = "";
+let currentRawTitle = ""; // NEW: Tracks the raw Icecast string independently
 let currentTrackSlug = ""; 
 let currentChannel = "melle";
 let playerName = "";
@@ -661,8 +661,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             if (isTargetedMission) {
                 currentSong = targetSlug.replace(/-/g, ' ');
+                currentRawTitle = targetSlug; // Ensure this matches track keys 
                 currentTrackSlug = targetSlug;
-                loadBeatmap(currentSong);
+                loadBeatmap(currentRawTitle);
                 const songUI = document.getElementById('songUI');
                 if (songUI) songUI.innerHTML = `<i class="fas fa-music me-2"></i> ${currentSong} (LOOPING)`;
                 
@@ -672,10 +673,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 }
                 
                 audioSource.addEventListener('ended', () => {
-                    triggerEndOfMatch(currentSong, currentTrackSlug);
+                    triggerEndOfMatch(currentSong, currentTrackSlug, currentRawTitle);
                     setTimeout(() => {
                         if (isMatchResetting) {
-                            resetMatchState(currentSong, currentTrackSlug);
+                            resetMatchState(currentSong, currentTrackSlug, currentRawTitle);
                             audioSource.play().catch(e => console.error(e));
                             trackStartTime = performance.now() + BUFFER_TIME;
                         }
@@ -726,7 +727,7 @@ function updateDiagnostics() {
 }
 setInterval(updateDiagnostics, 100);
 
-function runBenchmark() {
+			function runBenchmark() {
     const btn = document.getElementById('btnBenchmark');
     const select = document.getElementById('graphicsQuality');
     if(!btn || !select) return;
@@ -1298,12 +1299,22 @@ async function fetchCurrentSong() {
                 let trackKey = Object.keys(channelMeta).find(k => k === rawTitle || k === rawTitle + '.mp3' || channelMeta[k].title === rawTitle);
                 let actualFilenameSlug = trackKey ? trackKey.replace(/\.mp3$/i, '') : wpSanitizeFileName(rawTitle);
 
+                // NEW: Format the title for UI display
+                let displayTitle = rawTitle;
+                if (trackKey && channelMeta[trackKey]) {
+                    let meta = channelMeta[trackKey];
+                    displayTitle = meta.title || rawTitle;
+                    if (meta.artist) displayTitle = meta.artist + ' - ' + displayTitle;
+                }
+
                 const inGameCollabBtn = document.getElementById('ingame-collab-btn');
 
-                if (currentSong && currentSong !== rawTitle && !isMatchResetting) {
-                    triggerEndOfMatch(rawTitle, actualFilenameSlug);
-                } else if (!currentSong) {
-                    currentSong = rawTitle;
+                // NEW: Track changes using the raw title, but push displayTitle to the UI
+                if (currentRawTitle && currentRawTitle !== rawTitle && !isMatchResetting) {
+                    triggerEndOfMatch(displayTitle, actualFilenameSlug, rawTitle);
+                } else if (!currentRawTitle) {
+                    currentRawTitle = rawTitle;
+                    currentSong = displayTitle;
                     currentTrackSlug = actualFilenameSlug;
                     const songUI = document.getElementById('songUI');
                     if(songUI) songUI.innerHTML = `<i class="fas fa-music me-2"></i> ${currentSong}`;
@@ -1339,7 +1350,7 @@ async function loadBeatmap(songTitle) {
     } catch (e) { currentBeatmap = null; }
 }
 
-function triggerEndOfMatch(newSong, newTrackSlug) {
+function triggerEndOfMatch(newSong, newTrackSlug, newRawTitle) {
     isMatchResetting = true;
     updateGlobalScore();
     
@@ -1370,13 +1381,13 @@ function triggerEndOfMatch(newSong, newTrackSlug) {
         if(rewardUI) rewardUI.style.display = 'block';
         let originalChannel = isSinglePlayer ? currentChannel.split('_iso_')[0] : currentChannel;
         const targetUrl = `https://qrjournal.org/radio-player/track/${originalChannel}/${currentTrackSlug}`;
-        attemptCrawl(targetUrl, 5, newSong, newTrackSlug);
+        attemptCrawl(targetUrl, 5, newSong, newTrackSlug, newRawTitle);
         
         if(closeRewardBtn) {
             closeRewardBtn.onclick = () => {
                 if(rewardUI) rewardUI.style.display = 'none';
                 if(liveLeaderboardUI) liveLeaderboardUI.style.display = 'block';
-                resetMatchState(newSong, newTrackSlug);
+                resetMatchState(newSong, newTrackSlug, newRawTitle);
             };
         }
     } else {
@@ -1405,7 +1416,7 @@ function triggerEndOfMatch(newSong, newTrackSlug) {
         setTimeout(() => {
             if(leaderboardUI) leaderboardUI.style.display = 'none';
             if(liveLeaderboardUI) liveLeaderboardUI.style.display = 'block';
-            resetMatchState(newSong, newTrackSlug);
+            resetMatchState(newSong, newTrackSlug, newRawTitle);
         }, 12000);
     }
     
@@ -1419,19 +1430,22 @@ function triggerEndOfMatch(newSong, newTrackSlug) {
     }
 }
 
-function resetMatchState(newSong, newTrackSlug) {
+function resetMatchState(newSong, newTrackSlug, newRawTitle) {
     score = { caught: 0, hits: 0 };
     updateScoreUI();
     currentSong = newSong;
     currentTrackSlug = newTrackSlug; 
+    if (newRawTitle) currentRawTitle = newRawTitle; // Keep raw sync updated
+    
     const songUI = document.getElementById('songUI');
     if (!useGamepad && songUI) songUI.innerHTML = `<i class="fas fa-music me-2"></i> ${currentSong}`;
-    loadBeatmap(newSong); 
+    
+    loadBeatmap(newRawTitle || newSong); 
     if (vrRewardMesh) vrRewardMesh.visible = false;
     isMatchResetting = false;
 }
 
-function attemptCrawl(targetUrl, retriesLeft, newSong, newTrackSlug) {
+function attemptCrawl(targetUrl, retriesLeft, newSong, newTrackSlug, newRawTitle) {
     const rewardDetails = document.getElementById('rewardDetails');
     if(!rewardDetails) return;
 
@@ -1536,21 +1550,20 @@ function attemptCrawl(targetUrl, retriesLeft, newSong, newTrackSlug) {
                 vrRewardMesh.lookAt(camera.position);
             }
         } else {
-            handleCrawlRetry(targetUrl, retriesLeft, newSong, newTrackSlug);
+            handleCrawlRetry(targetUrl, retriesLeft, newSong, newTrackSlug, newRawTitle);
         }
-    }).catch(err => { handleCrawlRetry(targetUrl, retriesLeft, newSong, newTrackSlug); });
+    }).catch(err => { handleCrawlRetry(targetUrl, retriesLeft, newSong, newTrackSlug, newRawTitle); });
 }
 
-function handleCrawlRetry(targetUrl, retriesLeft, newSong, newTrackSlug) {
+function handleCrawlRetry(targetUrl, retriesLeft, newSong, newTrackSlug, newRawTitle) {
     const rewardDetails = document.getElementById('rewardDetails');
     if (retriesLeft > 1) {
-        setTimeout(() => attemptCrawl(targetUrl, retriesLeft - 1, newSong, newTrackSlug), 1500);
+        setTimeout(() => attemptCrawl(targetUrl, retriesLeft - 1, newSong, newTrackSlug, newRawTitle), 1500);
     } else if(rewardDetails) {
         rewardDetails.innerHTML = `<div class="alert alert-danger text-center"><i class="fas fa-exclamation-triangle fs-3 d-block mb-2"></i><strong>Interference.</strong> Extraction failed.</div><button id="rescanBtn" class="btn btn-warning w-100 fw-bold py-2 shadow-sm"><i class="fas fa-sync me-1"></i> Rescan</button>`;
-        document.getElementById('rescanBtn').onclick = () => attemptCrawl(targetUrl, 5, newSong, newTrackSlug);
+        document.getElementById('rescanBtn').onclick = () => attemptCrawl(targetUrl, 5, newSong, newTrackSlug, newRawTitle);
     }
 }
-
 // --- RENDERING & PHYSICS ---
 function updateVRHUD() {
     if (!vrHudCtx) return;
@@ -1666,11 +1679,45 @@ function initScene() {
     const threeContainer = document.getElementById('three-container');
     if(threeContainer) threeContainer.appendChild(renderer.domElement);
     
-    const vrBtn = VRButton.createButton(renderer);
-    vrBtn.style.zIndex = "999999"; 
-    vrBtn.addEventListener('click', () => { vrBtn.style.pointerEvents = 'none'; setTimeout(() => { vrBtn.style.pointerEvents = 'auto'; }, 2000); });
-    const wrapper = document.getElementById('melle-vr-wrapper');
-    if(wrapper) wrapper.appendChild(vrBtn);
+    // --- CONDITIONAL XR NOTIFICATION & MOBILE SPLIT-SCREEN BLOCK ---
+    if ('xr' in navigator) {
+        navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+            // Check if the device is a standard mobile phone vs a dedicated VR Headset (Quest, Pico, etc.)
+            const isMobilePhone = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const isDedicatedVR = /Oculus|Quest|VR|Vive|Pico/i.test(navigator.userAgent);
+
+            // ONLY append the XR button if supported AND (it's not a phone OR it is a dedicated VR headset)
+            if (supported && (!isMobilePhone || isDedicatedVR)) {
+                const vrBtn = VRButton.createButton(renderer);
+                
+                // Override Three.js default "dock" styling to make it a clean, floating notification badge
+                vrBtn.style.position = "absolute";
+                vrBtn.style.bottom = "30px";
+                vrBtn.style.left = "50%";
+                vrBtn.style.transform = "translateX(-50%)";
+                vrBtn.style.width = "auto";
+                vrBtn.style.minWidth = "200px";
+                vrBtn.style.padding = "12px 24px";
+                vrBtn.style.borderRadius = "50px";
+                vrBtn.style.border = "1px solid #00f2ff";
+                vrBtn.style.background = "rgba(5, 5, 5, 0.85)";
+                vrBtn.style.color = "#00f2ff";
+                vrBtn.style.fontWeight = "bold";
+                vrBtn.style.letterSpacing = "1px";
+                vrBtn.style.boxShadow = "0 0 20px rgba(0, 242, 255, 0.4)";
+                vrBtn.style.zIndex = "999999";
+                
+                vrBtn.addEventListener('click', () => { 
+                    vrBtn.style.pointerEvents = 'none'; 
+                    setTimeout(() => { vrBtn.style.pointerEvents = 'auto'; }, 2000); 
+                });
+                
+                const wrapper = document.getElementById('melle-vr-wrapper');
+                if (wrapper) wrapper.appendChild(vrBtn);
+            }
+        });
+    }
+    // -------------------------------------------------------------
 
     vrHudCanvas = document.createElement('canvas'); vrHudCanvas.width = 512; vrHudCanvas.height = 128;
     vrHudCtx = vrHudCanvas.getContext('2d'); vrHudTexture = new THREE.CanvasTexture(vrHudCanvas);
@@ -2222,33 +2269,15 @@ function applyGamepadMovement() {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
-    // Original Extract Button (Reloads the page)
     const closeVrBtn = document.getElementById('close-vr-btn');
     if (closeVrBtn) {
         closeVrBtn.addEventListener('click', async (e) => { 
             e.preventDefault();
             if (closeVrBtn.disabled) return;
-            
             closeVrBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Extracting...';
             closeVrBtn.disabled = true;
-            
             await removePlayerFromServer(); 
             window.location.reload(); 
-        });
-    }
-
-    // [NEW] Home Button (Routes to PWA Home safely)
-    const homeVrBtn = document.getElementById('home-vr-btn');
-    if (homeVrBtn) {
-        homeVrBtn.addEventListener('click', async (e) => { 
-            e.preventDefault();
-            if (homeVrBtn.disabled) return;
-            
-            homeVrBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Routing...';
-            homeVrBtn.disabled = true;
-            
-            await removePlayerFromServer(); 
-            window.location.href = config.homeUrl; 
         });
     }
 
@@ -2286,3 +2315,5 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 window.onbeforeunload = removePlayerFromServer;
+
+		

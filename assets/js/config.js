@@ -17,8 +17,7 @@ export const config = {
     pluginUrl: localizedConfig.pluginUrl || "/wp-content/plugins/melle-vr/",
     directChannel: localizedConfig.directChannel || "",
     directTrack: localizedConfig.directTrack || "",
-    directMp3: localizedConfig.directMp3 || "",
-    homeUrl: localizedConfig.homeUrl || "/community" // [NEW] Added Home URL
+    directMp3: localizedConfig.directMp3 || ""
 };
 
 // 2. SHARED MUTABLE STATE

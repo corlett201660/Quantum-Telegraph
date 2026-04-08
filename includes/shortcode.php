@@ -94,6 +94,16 @@ function melle_vr_shortcode($atts) {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/annyang/2.6.1/annyang.min.js"></script>
 
     <style>
+        /* HIDE THEME DOCK IN VR MODE */
+        /* Suppresses standard theme footers and the QRQ Toast Link specifically */
+        #qrq-toast-link, .qrq-toast-link, #your-custom-dock-id, .your-custom-dock-class, footer { 
+            display: none !important; 
+        }
+/* HIDE THE GLOBAL THEME DOCK IN VR MODE */
+.dock-wrapper { 
+    display: none !important; 
+}
+
         #rune-ticker-container { position: fixed !important; bottom: 0 !important; left: 0 !important; width: 100% !important; background: rgba(0, 0, 0, 0.7) !important; color: #00f2ff !important; overflow: hidden !important; white-space: nowrap !important; z-index: 99998 !important; padding: 8px 0 !important; font-size: 1.5rem !important; font-weight: bold !important; letter-spacing: 8px !important; pointer-events: none !important; }
         #rune-ticker-content { display: inline-block !important; padding-left: 100% !important; animation: marqueeRTL 25s linear infinite !important; }
         @keyframes marqueeRTL { 0%   { transform: translateX(0); } 100% { transform: translateX(-100%); } }
@@ -109,7 +119,7 @@ function melle_vr_shortcode($atts) {
             wpValidateUrl: "<?php echo $validate_url; ?>",
             beatmapDir: "<?php echo $beatmap_dir; ?>",
             assetDir: "<?php echo $asset_dir; ?>",
-            icecastBaseUrl: "<?php echo esc_js(get_option('melle_vr_icecast_base_url', 'https://qrjournal.org/icecast/')); ?>",
+            icecastBaseUrl: "https://qrjournal.org/icecast/",
             pluginUrl: "<?php echo $plugin_url; ?>",
             directChannel: "<?php echo esc_js($direct_channel); ?>",
             directTrack: "<?php echo esc_js($direct_track); ?>",
@@ -119,7 +129,6 @@ function melle_vr_shortcode($atts) {
             restrictedMounts: <?php echo json_encode($restricted); ?>,
             userHasRoleAccess: <?php echo $user_has_access ? 'true' : 'false'; ?>,
             storeLink: "<?php echo esc_js(get_option('melle_vr_store_link', '')); ?>",
-            homeUrl: "<?php echo esc_js(get_option('melle_vr_home_url', '/community')); ?>",
             stationReqs: <?php echo json_encode($station_reqs); ?>,
             userPurchased: <?php echo json_encode($user_purchased); ?>
         };
@@ -309,11 +318,6 @@ function melle_vr_shortcode($atts) {
     <div id="melle-vr-wrapper">
         
         <div id="ingame-overlay-controls" style="display:none; position: fixed !important; top: 15px !important; left: 15px !important; right: 15px !important; z-index: 999999 !important; gap: 8px; flex-direction: row; flex-wrap: wrap;">
-            
-            <button id="home-vr-btn" class="btn btn-sm btn-outline-primary fw-bold" style="border-radius: 6px !important; background: rgba(0,0,0,0.5) !important; box-shadow: 0 0 10px rgba(13,110,253,0.3);">
-                <i class="fas fa-home me-1"></i> Home
-            </button>
-
             <button id="close-vr-btn" class="btn btn-sm btn-outline-danger fw-bold" style="border-radius: 6px !important; background: rgba(0,0,0,0.5) !important; box-shadow: 0 0 10px rgba(255,0,0,0.3);">
                 <i class="fas fa-sign-out-alt me-1"></i> Extract
             </button>
@@ -346,7 +350,7 @@ function melle_vr_shortcode($atts) {
             <div id="ui-overlay" class="card p-4 rounded-4 shadow-lg border-top border-2 border-primary w-100" style="max-width: 450px;">
                 
                 <div class="d-flex justify-content-between align-items-center pb-3 mb-3 border-bottom border-secondary">
-                    <h2 class="m-0 text-primary fw-bold" style="letter-spacing: 1px;">M.E.L.L.E.</h2>
+                    <h2 class="m-0 text-primary fw-bold" style="letter-spacing: 1px;">Quantum Telegraph</h2>
                     <div class="btn-group shadow-sm">
                         <button id="themeToggleBtn" class="btn btn-sm btn-outline-secondary" title="Toggle Light/Dark Theme">
                             <i class="fas fa-moon"></i>
@@ -523,6 +527,22 @@ function melle_vr_shortcode($atts) {
             </div>
             <div class="offcanvas-body" id="diagnostics-modal-body">
                 </div>
+        </div>
+
+        <div id="melle-tutorial-overlay" class="rounded-4 card p-0" style="display: none; position: fixed; bottom: 5%; left: 50%; transform: translateX(-50%); z-index: 9999; width: 90%; max-width: 600px; text-align: center; border: 2px solid #00f2ff; box-shadow: 0 0 30px rgba(0, 242, 255, 0.3); background: rgba(255, 255, 255, 0.95);">
+            <div class="d-flex justify-content-between align-items-center border-bottom border-info pb-2 mb-3 p-3">
+                <h4 id="tutorial-title" class="text-info fw-bold mb-0 text-uppercase" style="letter-spacing: 2px;"><i class="fas fa-microchip me-2"></i> System Orientation</h4>
+                <button id="tutorial-close-btn" class="btn btn-sm btn-outline-danger" title="Skip Tutorial"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="tutorial-content" class="mb-4 px-3" style="font-size: 1.1rem; line-height: 1.5;"></div>
+            <div class="progress mb-3 mx-3" style="height: 5px; background-color: #ccc;">
+                <div id="tutorial-progress-bar" class="progress-bar bg-info" role="progressbar" style="width: 0%;"></div>
+            </div>
+            <div class="d-flex justify-content-between p-3 pt-0">
+                <button id="tutorial-prev-btn" class="btn btn-outline-secondary fw-bold px-4" disabled>BACK</button>
+                <span id="tutorial-step-counter" class="text-muted small align-self-center font-monospace">1 / 5</span>
+                <button id="tutorial-next-btn" class="btn btn-info text-dark fw-bold px-4 shadow-sm" style="box-shadow: 0 0 10px #00f2ff !important;">NEXT <i class="fas fa-arrow-right ms-1"></i></button>
+            </div>
         </div>
 
         <div id="leaderboardUI">

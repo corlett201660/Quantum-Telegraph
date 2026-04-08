@@ -232,10 +232,7 @@ function qrq_render_player() {
 
                     <div class="d-flex justify-content-between action-buttons mt-4 mb-3 border-bottom pb-3" style="border-color: var(--glass-border) !important;">
                         <button class="btn btn-sm btn-outline-secondary border-0" onclick="location.reload()"><i class="fas fa-sync"></i> RE-SYNC</button>
-                        
-                        <a href="<?php echo esc_url(get_option('melle_vr_home_url', '/community')); ?>" class="btn btn-sm border-0 fw-bold" style="color: var(--cyan);"><i class="fas fa-home"></i> HOME</a>
-                        
-                        <button class="btn btn-sm border-0" id="theme-btn" style="color: var(--gold);"><i class="fas fa-adjust"></i> THEME</button>
+                        <button class="btn btn-sm border-0" id="theme-btn" style="color: var(--cyan);"><i class="fas fa-adjust"></i> THEME</button>
                         <button class="btn btn-sm btn-outline-danger border-0" onclick="window.close()"><i class="fas fa-power-off"></i> EXIT</button>
                     </div>
                     

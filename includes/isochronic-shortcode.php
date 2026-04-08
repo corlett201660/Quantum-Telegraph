@@ -7,27 +7,9 @@
 
 if ( ! defined( 'ABSPATH' ) ) exit; // Exit if accessed directly
 
-// Register the shortcode safely on init
-add_action( 'init', function() {
-    add_shortcode( 'isochronic_core', 'qrq_isochronic_engine_shortcode' );
-});
+add_shortcode( 'isochronic_core', 'melle_vr_isochronic_shortcode' );
 
-// Intercept the page load and force our custom fullscreen template
-add_filter( 'template_include', 'qrq_force_isochronic_template', 99 );
-function qrq_force_isochronic_template( $template ) {
-    if ( is_page() ) {
-        global $post;
-        if ( has_shortcode( $post->post_content, 'isochronic_core' ) ) {
-            $plugin_template = MELLE_VR_PATH . 'includes/isochronic-template.php';
-            if ( file_exists( $plugin_template ) ) {
-                return $plugin_template;
-            }
-        }
-    }
-    return $template;
-}
-
-function qrq_isochronic_engine_shortcode() {
+function melle_vr_isochronic_shortcode() {
     ob_start();
     ?>
     
@@ -41,145 +23,83 @@ function qrq_isochronic_engine_shortcode() {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/annyang/2.6.1/annyang.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-    <script>
-        // Apply theme immediately to prevent FOUC
-        document.documentElement.setAttribute('data-theme', localStorage.getItem('appTheme') || 'dark');
-    </script>
-
     <style>
-        :root { 
-            --iso-bg: #000000; 
-            --iso-panel: #0c0c0c;
-            --iso-input-bg: #111111;
-            --iso-text: #ffffff;
-            --iso-text-muted: #888888;
-            --iso-cyan: #00f2ff; 
-            --iso-gold: #ffff00; 
-            --iso-border: #333333; 
-            --iso-danger: #ff0055; 
-            --iso-overlay: rgba(0,0,0,0.92);
-            --iso-checkpoint-bg: rgba(0,0,0,0.98);
-            --iso-terminal-text: #00ff00;
-        }
-
-        html[data-theme="light"], body[data-theme="light"] {
-            --iso-bg: #f4f6f8;
-            --iso-panel: #ffffff;
-            --iso-input-bg: #ffffff;
-            --iso-text: #212529;
-            --iso-text-muted: #6c757d;
-            --iso-cyan: #007a99;
-            --iso-gold: #b38600;
-            --iso-border: #dee2e6;
-            --iso-danger: #dc3545;
-            --iso-overlay: rgba(255,255,255,0.95);
-            --iso-checkpoint-bg: rgba(255,255,255,0.98);
-            --iso-terminal-text: #006600;
-        }
-
-        /* HIDE PWA DOCK & TOAST ON THIS SCREEN */
-        #qrq-toast-link, .qrq-toast-link, footer, .dock-wrapper { 
-            display: none !important; 
-        }
-
-        body.isochronic-active { background: var(--iso-bg); color: var(--iso-text); font-family: 'Inter', sans-serif; min-height: 100vh; margin: 0; overflow-x: hidden; transition: background-color 0.3s, color 0.3s; }
-        
-        /* Dynamic Theme Classes */
-        .iso-card { background-color: var(--iso-panel) !important; border-color: var(--iso-border) !important; color: var(--iso-text) !important; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-        .iso-input { background-color: var(--iso-input-bg) !important; color: var(--iso-text) !important; border: 1px solid var(--iso-border) !important; }
-        .iso-input::placeholder { color: var(--iso-text-muted) !important; opacity: 0.6; }
-        .iso-input:focus { border-color: var(--iso-cyan) !important; box-shadow: 0 0 0 0.25rem rgba(0, 122, 153, 0.25) !important; outline: none; }
-        .iso-border { border-color: var(--iso-border) !important; }
-        .iso-text { color: var(--iso-text) !important; }
-        .iso-text-muted { color: var(--iso-text-muted) !important; }
-
-        /* THEME JAILBREAK: Force Overlays to break out of Theme Containers */
-        #init-overlay, #gen-overlay, #crawl-overlay, #checkpointOverlay, #full-map-overlay { 
-            position: fixed !important; 
-            top: 0 !important; 
-            left: 0 !important; 
-            right: 0 !important;
-            bottom: 0 !important;
-            width: 100% !important; 
-            height: 100% !important; 
-            z-index: 999999 !important; 
-            margin: 0 !important;
-            padding: 0 !important;
-            transform: none !important;
-        }
-
-        #init-overlay { background: var(--iso-bg); display: flex; flex-direction: column; align-items: center; justify-content: center; }
-        #gen-overlay { background: var(--iso-overlay); display: none; flex-direction: column; align-items: center; justify-content: center; }
-        #crawl-overlay { pointer-events: none; display: none; }
-        #checkpointOverlay { display: none; background: var(--iso-checkpoint-bg); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); align-items: flex-start; justify-content: center; padding-top: 5vh; overflow-y: auto; pointer-events: auto; }
-        #full-map-overlay { display: none; background: var(--iso-bg); }
-
-        .forge-dna { font-size: 5rem; color: var(--iso-cyan); animation: dnaSpin 2.5s infinite linear; filter: drop-shadow(0 0 10px var(--iso-cyan)); }
-        @keyframes dnaSpin { 0% { transform: rotateY(0deg); color: var(--iso-cyan); } 50% { color: var(--iso-gold); } 100% { transform: rotateY(360deg); color: var(--iso-cyan); } }
-        .spawn-icon { position: absolute; color: var(--iso-cyan); opacity: 0; animation: spawnFade 1.5s cubic-bezier(0.19, 1, 0.22, 1) forwards; }
-        @keyframes spawnFade { 0% { transform: scale(0.5) rotate(-90deg); opacity: 0; } 50% { opacity: 1; color: var(--iso-gold); } 100% { transform: scale(3) rotate(90deg); opacity: 0; } }
-
-        /* Dashboard & Lexicon */
-        .dash-panel { background: var(--iso-panel); border: 1px solid var(--iso-border); border-radius: 12px; min-height: calc(100vh - 2rem); display: flex; flex-direction: column; padding: 1.2rem; }
-        .lex-entry { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; padding: 6px; border-bottom: 1px solid var(--iso-border); font-family: 'JetBrains Mono'; color: var(--iso-text); }
-        .weight-high { color: var(--iso-gold); border-left: 3px solid var(--iso-gold); padding-left: 5px; }
-
-        /* Terminal & Maps */
-        .diag-terminal { background: var(--iso-input-bg); border: 1px solid var(--iso-border); border-radius: 4px; font-family: 'JetBrains Mono'; font-size: 0.65rem; padding: 10px; color: var(--iso-terminal-text); height: 200px; overflow-y: auto; text-transform: uppercase; }
-        .diag-entry { margin-bottom: 4px; border-bottom: 1px solid var(--iso-border); padding-bottom: 2px; }
-        .diag-alt { color: var(--iso-text-muted); display: block; font-size: 0.6rem; }
-
-        #geo-hud-container { margin-bottom: 10px; border: 1px solid var(--iso-border); background: var(--iso-input-bg); border-radius: 4px; padding: 8px; }
-        #geo-map svg { background: var(--iso-panel); width: 100%; height: 150px; border: 1px solid var(--iso-border); cursor: grab; }
-        #geo-map svg:active { cursor: grabbing; }
-        #full-map-overlay svg { width: 100%; height: 100%; background: var(--iso-bg); cursor: grab; }
+        #full-map-overlay svg { width: 100%; height: 100%; background: #050505; cursor: grab; }
         #full-map-overlay svg:active { cursor: grabbing; }
+        #geo-map svg { cursor: grab; border: 1px solid #222; background: #000; }
+        #geo-map svg:active { cursor: grabbing; }
+      
+        :root { --bg: #000; --cyan: #00f2ff; --gold: #ffff00; --border: #222; --danger: #ff0055; }
+        body.isochronic-active { background: var(--bg); color: #fff; font-family: 'Inter', sans-serif; min-height: 100vh; margin: 0; overflow-x: hidden; }
+        
+        #init-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #000; z-index: 20000; display: flex; flex-direction: column; align-items: center; justify-content: center; }
 
-        .node-point { fill: var(--iso-cyan); stroke: none; transition: all 0.5s; cursor: pointer; }
-        .node-point:hover { fill: var(--iso-gold); r: 8; }
-        .user-point { fill: var(--iso-danger); animate: pulse 2s infinite; }
-        .node-label { fill: var(--iso-text); font-size: 8px; font-family: 'JetBrains Mono'; pointer-events: none; opacity: 0.8; }
-        .geo-data { font-family: 'JetBrains Mono'; font-size: 0.7rem; color: var(--iso-gold); display: flex; justify-content: space-between; margin-bottom: 5px; }
+        #gen-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.92); z-index: 11000; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        .forge-dna { font-size: 5rem; color: var(--cyan); animation: dnaSpin 2.5s infinite linear; filter: drop-shadow(0 0 10px var(--cyan)); }
+        @keyframes dnaSpin { 0% { transform: rotateY(0deg); color: var(--cyan); } 50% { color: var(--gold); } 100% { transform: rotateY(360deg); color: var(--cyan); } }
 
-        .spectrum-line { font-family: 'Playfair Display', serif; text-align: center; opacity: 0.1; transition: 1s; font-size: 2.2rem; margin-bottom: 180px; padding: 0 10%; color: var(--iso-text); }
+        #crawl-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 10000; display: none; }
+        .spawn-icon { position: absolute; color: var(--cyan); opacity: 0; animation: spawnFade 1.5s cubic-bezier(0.19, 1, 0.22, 1) forwards; }
+        @keyframes spawnFade { 0% { transform: scale(0.5) rotate(-90deg); opacity: 0; } 50% { opacity: 1; color: var(--gold); } 100% { transform: scale(3) rotate(90deg); opacity: 0; } }
+
+        #checkpointOverlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 15000; display: none; background: rgba(0,0,0,0.98); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px); align-items: flex-start; justify-content: center; padding-top: 20px; overflow-y: auto; pointer-events: auto; }
+        #checkpointOverlay input, #checkpointOverlay select, #nodeEditorModal select, #lexiconEditorModal select { border: 2px solid var(--cyan) !important; color: #ffffff !important; background-color: #111 !important; }
+        #checkpointOverlay label { color: var(--gold) !important; }
+
+        .dash-panel { background: #050505; border: 1px solid var(--border); border-radius: 12px; min-height: calc(100vh - 2rem); display: flex; flex-direction: column; padding: 1.2rem; }
+        .lex-entry { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; padding: 6px; border-bottom: 1px solid #111; font-family: 'JetBrains Mono'; }
+        .weight-high { color: var(--gold); border-left: 3px solid var(--gold); padding-left: 5px; }
+
+        .diag-terminal { background: rgba(10,10,10,0.5); border: 1px solid #333; border-radius: 4px; font-family: 'JetBrains Mono'; font-size: 0.65rem; padding: 10px; color: #0f0; height: 200px; overflow-y: auto; text-transform: uppercase; }
+        .diag-entry { margin-bottom: 4px; border-bottom: 1px solid #111; padding-bottom: 2px; }
+        .diag-alt { color: #555; display: block; font-size: 0.6rem; }
+
+        #geo-hud-container { margin-bottom: 10px; border: 1px solid #333; background: #080808; border-radius: 4px; padding: 8px; }
+        #geo-map svg { background: #000; width: 100%; height: 150px; border: 1px solid #222; }
+        .node-point { fill: var(--cyan); stroke: none; transition: all 0.5s; cursor: pointer; }
+        .node-point:hover { fill: var(--gold); r: 8; }
+        .user-point { fill: var(--danger); animate: pulse 2s infinite; }
+        .node-label { fill: #fff; font-size: 8px; font-family: 'JetBrains Mono'; pointer-events: none; opacity: 0.7; }
+        .geo-data { font-family: 'JetBrains Mono'; font-size: 0.7rem; color: var(--gold); display: flex; justify-content: space-between; margin-bottom: 5px; }
+
+        .spectrum-line { font-family: 'Playfair Display', serif; text-align: center; opacity: 0.1; transition: 1s; font-size: 2.2rem; margin-bottom: 180px; padding: 0 10%; }
         .active-focus { opacity: 1 !important; transform: scale(1.05); text-shadow: 0 0 15px rgba(0, 242, 255, 0.3); }
 
-        .btn-sync.active { background: var(--iso-gold) !important; color: #000; border-color: var(--iso-gold); }
+        .btn-sync.active { background: var(--gold) !important; color: #000; border-color: var(--gold); }
         .spin-icon { display: none; }
         .active .spin-icon { display: inline-block; animation: fa-spin 1s infinite linear; margin-right: 5px; }
         
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: var(--iso-bg); }
-        ::-webkit-scrollbar-thumb { background: var(--iso-border); border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: var(--iso-text-muted); }
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #333; }
     </style>
 
     <div class="isochronic-wrapper">
         <div id="init-overlay">
             <h1 class="display-4 fw-900 text-info mb-3 text-center">ISOCHRONIC 4.0</h1>
-            <p class="iso-text-muted small mb-4 px-4 text-center">System requires explicit user authorization to initialize Spatial-Neural links.</p>
+            <p class="text-secondary small mb-4 px-4 text-center">System requires explicit user authorization to initialize Spatial-Neural links.</p>
             
-            <div id="isoSessionOptions" class="iso-card" style="display: none; width: 100%; max-width: 400px; padding: 15px; border-radius: 8px; border: 1px solid var(--iso-cyan); margin-bottom: 25px;">
-                <div class="alert alert-info py-2 small mb-3 text-center fw-bold">
+            <div id="isoSessionOptions" style="display: none; width: 100%; max-width: 400px; background: rgba(10,10,10,0.9); padding: 15px; border-radius: 8px; border: 1px solid #00f2ff; margin-bottom: 25px; box-shadow: 0 0 20px rgba(0,242,255,0.1);">
+                <div class="alert alert-dark border-info text-info py-2 small mb-3 text-center fw-bold">
                     <i class="fas fa-database me-2"></i>Previous Neural State Detected
                 </div>
                 
                 <div class="form-check form-switch mb-2" id="toggleWaypointsContainer" style="display:none;">
                     <input class="form-check-input" type="checkbox" id="importWaypoints" checked>
-                    <label class="form-check-label iso-text small" for="importWaypoints">Load Spatial Anchors (Waypoints)</label>
+                    <label class="form-check-label text-light small" for="importWaypoints">Load Spatial Anchors (Waypoints)</label>
                 </div>
                 
                 <div class="form-check form-switch mb-2" id="toggleLexiconContainer" style="display:none;">
                     <input class="form-check-input" type="checkbox" id="importLexiconData" checked>
-                    <label class="form-check-label iso-text small" for="importLexiconData">Load Neural Lexicon (Nodes)</label>
+                    <label class="form-check-label text-light small" for="importLexiconData">Load Neural Lexicon (Nodes)</label>
                 </div>
                 
                 <div class="form-check form-switch mb-3" id="toggleInterceptionsContainer" style="display:none;">
                     <input class="form-check-input" type="checkbox" id="importInterceptions" checked>
-                    <label class="form-check-label iso-text small" for="importInterceptions">Load Intercepted Works Archive</label>
+                    <label class="form-check-label text-light small" for="importInterceptions">Load Intercepted Works Archive</label>
                 </div>
                 
-                <hr class="iso-border my-3">
+                <hr class="border-secondary my-3">
                 <button class="btn btn-outline-danger btn-sm w-100 fw-bold" id="isoStartFreshBtn"><i class="fas fa-trash me-2"></i>WIPE ALL DATA (Start Fresh)</button>
             </div>
             
@@ -189,16 +109,16 @@ function qrq_isochronic_engine_shortcode() {
         <div id="gen-overlay">
             <i class="fas fa-dna forge-dna mb-4"></i>
             <h4 class="text-info fw-bold letter-spacing-2">NEURAL FORGING</h4>
-            <p class="iso-text-muted small">Synthesizing Lexical Weights...</p>
+            <p class="text-secondary small">Synthesizing Lexical Weights...</p>
         </div>
         <div id="crawl-overlay"></div>
 
         <div class="modal fade" id="interceptionsModal" tabindex="-1">
             <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
-                <div class="modal-content iso-card iso-border border-info">
-                    <div class="modal-header iso-border">
+                <div class="modal-content bg-black border border-info">
+                    <div class="modal-header border-secondary">
                         <h5 class="modal-title text-info fw-bold"><i class="fas fa-folder-open me-2"></i>INTERCEPTED WORKS</h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body" id="interceptions-list"></div>
                 </div>
@@ -208,10 +128,10 @@ function qrq_isochronic_engine_shortcode() {
         <div id="checkpointOverlay">
             <div class="container" style="max-width: 1000px;">
                 <div class="row g-4">
-                    <div class="col-md-5 iso-border border-end">
+                    <div class="col-md-5 border-end border-secondary">
                         <h2 class="text-warning fw-900 mb-4">NEURAL CHECKPOINT</h2>
                         
-                        <div class="iso-card p-3 rounded mb-3 border iso-border">
+                        <div class="bg-dark p-3 rounded mb-3 border border-secondary">
                             <div class="form-check form-switch mb-2">
                                 <input class="form-check-input" type="checkbox" id="reflexMode" checked>
                                 <label class="form-check-label small text-info fw-bold" for="reflexMode">REFLEX SYNC (AUTO)</label>
@@ -222,30 +142,30 @@ function qrq_isochronic_engine_shortcode() {
                                 <label class="form-check-label small text-warning fw-bold" for="autoPilotMode">AUTO PILOT ENABLED</label>
                             </div>
 
-                            <label class="small iso-text-muted mb-1">GOAL / INTENT</label>
-                            <input type="text" id="auto-goal" class="form-control form-control-sm iso-input mb-2" placeholder="e.g., Transcendence">
+                            <label class="small text-secondary mb-1">GOAL / INTENT</label>
+                            <input type="text" id="auto-goal" class="form-control form-control-sm bg-black text-white border-secondary mb-2" placeholder="e.g., Transcendence">
                             
-                            <label class="small iso-text-muted mb-1">TIMEOUT: <span id="timer-val" class="iso-text">5</span>s</label>
+                            <label class="small text-secondary mb-1">TIMEOUT: <span id="timer-val">5</span>s</label>
                             <input type="range" id="auto-timer" class="form-range" min="0.5" max="30" step="0.5" value="5" oninput="document.getElementById('timer-val').innerText = this.value">
                             
                             <div id="auto-countdown" class="text-center text-danger fw-bold mt-2" style="display:none; font-family: 'JetBrains Mono';">
                                 AUTO-ADJUST IN: <span id="countdown-sec">5</span>s
                             </div>
 
-                            <hr class="iso-border">
+                            <hr class="border-secondary">
 
-                            <label class="small iso-text-muted mb-1">STRATEGY</label>
-                            <select id="reflexStrategy" class="form-select form-select-sm iso-input mb-3">
+                            <label class="small text-secondary mb-1">STRATEGY</label>
+                            <select id="reflexStrategy" class="form-select form-select-sm bg-black text-white border-secondary mb-3">
                                 <option value="first">First Word Detected</option>
                                 <option value="last">Last Word Detected</option>
                                 <option value="most">Most Frequent</option>
                                 <option value="least">Least Frequent (Outlier)</option>
                             </select>
-                            <label class="small iso-text-muted mb-1">INJECTION WEIGHT</label>
+                            <label class="small text-secondary mb-1">INJECTION WEIGHT</label>
                             <input type="range" id="chk-weight" class="form-range" min="1" max="100" value="50">
                         </div>
 
-                        <input type="text" id="chk-word" class="form-control iso-input mb-2" placeholder="Manual Override...">
+                        <input type="text" id="chk-word" class="form-control bg-black text-white border-info mb-2" placeholder="Manual Override...">
                         <button class="btn btn-info w-100 fw-bold mb-3" onclick="app.commitCheckpoint()">FORCE SYNC</button>
                         <button class="btn btn-danger w-100 fw-bold btn-sm mb-2" onclick="app.exportPDF()"><i class="fas fa-file-pdf me-2"></i>EXPORT SESSION DATA</button>
                         
@@ -267,26 +187,26 @@ function qrq_isochronic_engine_shortcode() {
         </div>
 
         <div class="modal fade" id="nodeEditorModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered"><div class="modal-content iso-card iso-border border-info">
-                <div class="modal-header iso-border">
+            <div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-black border border-info">
+                <div class="modal-header border-secondary">
                     <h5 class="modal-title text-info fw-bold">NEURAL ANCHOR EDITOR</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <input type="hidden" id="edit-node-id">
-                    <label class="small iso-text-muted">ANCHOR NAME</label>
-                    <input type="text" id="edit-node-name" class="form-control iso-input mb-3">
-                    <label class="small iso-text-muted">ACTIVE RADIUS (METERS)</label>
-                    <input type="number" id="edit-node-radius" class="form-control iso-input mb-3">
-                    <label class="small iso-text-muted">INFLUENCE TYPE</label>
-                    <select id="edit-node-influence" class="form-select iso-input mb-3">
+                    <label class="small text-secondary">ANCHOR NAME</label>
+                    <input type="text" id="edit-node-name" class="form-control bg-dark text-white border-secondary mb-3">
+                    <label class="small text-secondary">ACTIVE RADIUS (METERS)</label>
+                    <input type="number" id="edit-node-radius" class="form-control bg-dark text-white border-secondary mb-3">
+                    <label class="small text-secondary">INFLUENCE TYPE</label>
+                    <select id="edit-node-influence" class="form-select bg-dark text-white border-secondary mb-3">
                         <option value="essence">Essence (Thematic & Implicit - Primary)</option>
                         <option value="literal">Literal (Explicit Name Insertion)</option>
                     </select>
-                    <label class="small iso-text-muted">META / CONTEXT</label>
-                    <textarea id="edit-node-meta" class="form-control iso-input mb-3" rows="3" placeholder="Describe the feeling..."></textarea>
+                    <label class="small text-secondary">META / CONTEXT</label>
+                    <textarea id="edit-node-meta" class="form-control bg-dark text-white border-secondary mb-3" rows="3" placeholder="Describe the feeling..."></textarea>
                 </div>
-                <div class="modal-footer iso-border">
+                <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-danger btn-sm me-auto" onclick="app.deleteNode()">DELETE</button>
                     <button type="button" class="btn btn-info fw-bold" onclick="app.saveNodeEdit()">UPDATE ANCHOR</button>
                 </div>
@@ -294,25 +214,25 @@ function qrq_isochronic_engine_shortcode() {
         </div>
 
         <div class="modal fade" id="lexiconEditorModal" tabindex="-1">
-            <div class="modal-dialog modal-dialog-centered"><div class="modal-content iso-card iso-border border-warning">
-                <div class="modal-header iso-border">
+            <div class="modal-dialog modal-dialog-centered"><div class="modal-content bg-black border border-warning">
+                <div class="modal-header border-secondary">
                     <h5 class="modal-title text-warning fw-bold">LEXICON NODE EDITOR</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <label class="small iso-text-muted">NODE WORD</label>
-                    <input type="text" id="edit-lex-word" class="form-control iso-input mb-3" readonly>
-                    <label class="small iso-text-muted">SYNAPTIC WEIGHT</label>
-                    <input type="number" id="edit-lex-weight" class="form-control iso-input mb-3">
-                    <label class="small iso-text-muted">INFLUENCE TYPE</label>
-                    <select id="edit-lex-influence" class="form-select iso-input mb-3">
+                    <label class="small text-secondary">NODE WORD</label>
+                    <input type="text" id="edit-lex-word" class="form-control bg-dark text-white border-secondary mb-3" readonly>
+                    <label class="small text-secondary">SYNAPTIC WEIGHT</label>
+                    <input type="number" id="edit-lex-weight" class="form-control bg-dark text-white border-secondary mb-3">
+                    <label class="small text-secondary">INFLUENCE TYPE</label>
+                    <select id="edit-lex-influence" class="form-select bg-dark text-white border-secondary mb-3">
                         <option value="essence">Essence (Thematic Integration - Primary)</option>
                         <option value="literal">Literal (Direct Word Insertion)</option>
                     </select>
-                    <label class="small iso-text-muted">ADDITIONAL CONTEXT</label>
-                    <textarea id="edit-lex-context" class="form-control iso-input mb-3" rows="3" placeholder="Provide deeper meaning..."></textarea>
+                    <label class="small text-secondary">ADDITIONAL CONTEXT</label>
+                    <textarea id="edit-lex-context" class="form-control bg-dark text-white border-secondary mb-3" rows="3" placeholder="Provide deeper meaning..."></textarea>
                 </div>
-                <div class="modal-footer iso-border">
+                <div class="modal-footer border-secondary">
                     <button type="button" class="btn btn-danger btn-sm me-auto" onclick="app.deleteLexiconWord()">REMOVE NODE</button>
                     <button type="button" class="btn btn-warning fw-bold text-dark" onclick="app.saveLexiconEdit()">UPDATE NODE</button>
                 </div>
@@ -330,7 +250,7 @@ function qrq_isochronic_engine_shortcode() {
                             </div>
                             <div class="geo-data">
                                 <span id="geo-coords">LAT: -- | LNG: -- | ALT: --</span>
-                                <span id="geo-anchor" class="iso-text">NO ANCHOR</span>
+                                <span id="geo-anchor" class="text-white">NO ANCHOR</span>
                             </div>
                             <div id="geo-map"></div>
                             <div class="btn-group w-100 mt-2" role="group">
@@ -342,11 +262,11 @@ function qrq_isochronic_engine_shortcode() {
                             <input type="file" id="import-anchors" style="display:none;" accept=".json" onchange="app.importAnchors(event)">
                         </div>
 
-                        <h6 class="iso-text-muted small fw-bold mb-2 mt-2">SOURCE SYNC</h6>
+                        <h6 class="text-secondary small fw-bold mb-2 mt-2">SOURCE SYNC</h6>
                         
                         <div class="input-group mb-2">
                             <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('manual-url').value='https://www.telegraph.co.uk/'" title="Target: The Telegraph"><i class="fas fa-newspaper"></i></button>
-                            <input type="text" id="manual-url" class="form-control form-control-sm iso-input" value="https://qrjournal.org/todays-note/">
+                            <input type="text" id="manual-url" class="form-control form-control-sm bg-black text-white border-secondary" value="https://qrjournal.org/todays-note/">
                             <button id="sync-btn" class="btn btn-secondary btn-sm btn-sync" onclick="app.processInput(document.getElementById('manual-url').value)">
                                 <i class="fas fa-sync spin-icon"></i>SYNC
                             </button>
@@ -359,10 +279,10 @@ function qrq_isochronic_engine_shortcode() {
                         <button class="btn btn-outline-warning w-100 mb-2 btn-sm" onclick="app.toggleScanner()">
                             <i class="fas fa-qrcode me-2"></i>QR CAMERA
                         </button>
-                        <div id="qr-reader" class="mb-3 border iso-border" style="display:none; height: 200px;"></div>
+                        <div id="qr-reader" class="mb-3 border border-secondary" style="display:none; height: 200px;"></div>
 
-                        <div class="d-flex justify-content-between align-items-center border-bottom iso-border pb-1 mb-2">
-                            <span class="small iso-text-muted fw-bold">ACTIVE LEXICON</span>
+                        <div class="d-flex justify-content-between align-items-center border-bottom border-secondary pb-1 mb-2">
+                            <span class="small text-secondary fw-bold">ACTIVE LEXICON</span>
                             <div class="btn-group" role="group">
                                 <button class="btn btn-outline-secondary btn-sm py-0" onclick="app.exportLexicon()" title="Export Lexicon"><i class="fas fa-download"></i></button>
                                 <button class="btn btn-outline-secondary btn-sm py-0" onclick="document.getElementById('import-lexicon').click()" title="Import Lexicon"><i class="fas fa-upload"></i></button>
@@ -372,9 +292,9 @@ function qrq_isochronic_engine_shortcode() {
                         
                         <div id="lex-list" style="flex-grow:1; overflow-y:auto; max-height: 250px;"></div>
 
-                        <div class="mt-auto pt-3 border-top iso-border">
+                        <div class="mt-auto pt-3 border-top border-secondary">
                             <div class="d-flex justify-content-between small mb-2">
-                                <span class="iso-text-muted" id="drift-status">Passive Drift: 0/10</span>
+                                <span class="text-secondary" id="drift-status">Passive Drift: 0/10</span>
                                 <span class="text-warning" id="voice-status">Voice: STANDBY</span>
                             </div>
                             <button class="btn btn-info w-100 fw-bold" onclick="app.generate()">GENERATE STREAM</button>
@@ -384,22 +304,22 @@ function qrq_isochronic_engine_shortcode() {
                 
                 <div class="col-lg-8">
                     <div class="dash-panel align-items-center justify-content-center text-center">
-                        <h1 class="display-4 fw-900 mb-0 iso-text">ISOCHRONIC</h1>
-                        <p class="iso-text-muted small mb-5">v4.0 | SPATIAL-NEURAL CORE</p>
+                        <h1 class="display-4 fw-900 mb-0">ISOCHRONIC</h1>
+                        <p class="text-secondary small mb-5">v4.0 | SPATIAL-NEURAL CORE</p>
                     </div>
                 </div>
             </div>
         </div>
 
         <div id="launch-btn-container" class="position-fixed bottom-0 start-50 translate-middle-x mb-4 d-none" style="z-index: 1050;">
-            <button id="launch-btn" class="btn btn-info btn-lg px-5 fw-bold shadow-lg" style="box-shadow: 0 0 20px var(--iso-cyan) !important;" onclick="app.openStream()">LAUNCH STREAM</button>
+            <button id="launch-btn" class="btn btn-info btn-lg px-5 fw-bold shadow-lg" style="box-shadow: 0 0 20px var(--cyan) !important;" onclick="app.openStream()">LAUNCH STREAM</button>
         </div>
 
         <div class="modal fade" id="streamModal" tabindex="-1" data-bs-backdrop="static">
-            <div class="modal-dialog modal-fullscreen"><div class="modal-content iso-card border-0">
+            <div class="modal-dialog modal-fullscreen"><div class="modal-content bg-black border-0">
                 <div class="position-absolute top-0 end-0 p-3" style="z-index: 2000;">
                     <button class="btn btn-outline-info btn-sm fw-bold me-2" onclick="app.manualAdvance()">NEXT MESSAGE <i class="fas fa-forward"></i></button>
-                    <button class="btn btn-outline-secondary btn-sm fw-bold" onclick="app.closeStream()">EXIT</button>
+                    <button class="btn btn-outline-light btn-sm fw-bold" onclick="app.closeStream()">EXIT</button>
                 </div>
                 <div class="modal-body overflow-auto" id="modalScroll" style="padding-top: 45vh; padding-bottom: 60vh;">
                     <div id="waterfall-area"></div>
@@ -407,16 +327,14 @@ function qrq_isochronic_engine_shortcode() {
             </div></div>
         </div>
 
-        <div id="full-map-overlay" style="display:none;">
-            <div class="position-absolute top-0 start-0 p-3 w-100 d-flex justify-content-between align-items-center" style="z-index: 12001; background: linear-gradient(180deg, var(--iso-overlay) 0%, transparent 100%);">
+        <div id="full-map-overlay" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#000; z-index:12000;">
+            <div class="position-absolute top-0 start-0 p-3 w-100 d-flex justify-content-between align-items-center" style="z-index: 12001; background: linear-gradient(180deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0) 100%);">
                 <h5 class="text-info fw-bold mb-0"><i class="fas fa-satellite me-2"></i>TOPOGRAPHY LINK</h5>
-                <button class="btn btn-outline-secondary btn-sm fw-bold" onclick="app.toggleFullMap()">CLOSE</button>
+                <button class="btn btn-outline-light btn-sm fw-bold" onclick="app.toggleFullMap()">CLOSE</button>
             </div>
             <div id="full-geo-map" style="width:100%; height:100%;"></div>
         </div>
-    </div> 
-    
-    <script>
+    </div> <script>
     document.body.classList.add('isochronic-active');
 
     const CONFIG = { API_KEY: "AIzaSyCGxdg_TGMaUAYQ_kr-HejCpeZ5zTY8O64", MODEL: "gemini-2.5-flash" };
@@ -452,6 +370,7 @@ function qrq_isochronic_engine_shortcode() {
         },
 
         init() {
+            // --- SESSION DATA MANAGER ---
             const hasWaypoints = !!localStorage.getItem('iso_waypoints');
             const hasLexicon = !!localStorage.getItem('iso_lexicon');
             const hasInterceptions = !!localStorage.getItem('iso_interceptions');
@@ -473,6 +392,7 @@ function qrq_isochronic_engine_shortcode() {
                     localStorage.removeItem('iso_lexicon');
                     localStorage.removeItem('iso_interceptions');
                     sessionBox.style.display = 'none';
+                    // Uncheck so they don't get saved back when start happens
                     if(document.getElementById('importWaypoints')) document.getElementById('importWaypoints').checked = false;
                     if(document.getElementById('importLexiconData')) document.getElementById('importLexiconData').checked = false;
                     if(document.getElementById('importInterceptions')) document.getElementById('importInterceptions').checked = false;
@@ -480,14 +400,17 @@ function qrq_isochronic_engine_shortcode() {
             });
 
             btnInit.addEventListener('click', () => {
+                // Clear any unselected toggle data
                 if (hasWaypoints && !document.getElementById('importWaypoints').checked) localStorage.removeItem('iso_waypoints');
                 if (hasLexicon && !document.getElementById('importLexiconData').checked) localStorage.removeItem('iso_lexicon');
                 if (hasInterceptions && !document.getElementById('importInterceptions').checked) localStorage.removeItem('iso_interceptions');
 
+                // Load remaining approved state
                 this.loadState(); 
                 this.loadLexiconState(); 
                 this.loadInterceptionsState(); 
                 
+                // Quantum Telegraph Game Target URL link check
                 const interceptedUrl = localStorage.getItem('iso_target_url');
                 if (interceptedUrl) {
                     document.getElementById('manual-url').value = interceptedUrl;
@@ -497,6 +420,7 @@ function qrq_isochronic_engine_shortcode() {
                 document.getElementById('reflexMode').onchange = (e) => this.state.reflex = e.target.checked;
                 document.getElementById('autoPilotMode').onchange = (e) => this.state.autoPilotActive = e.target.checked;
                 
+                // Provide a default fallback lexicon if completely empty
                 if(Object.keys(this.state.lexicon).length === 0) {
                     this.state.lexicon = { 
                         "coherence": { weight: 20, context: "State of synchrony", influence: "essence" }, 
@@ -669,7 +593,7 @@ function qrq_isochronic_engine_shortcode() {
                 anchorLabel.className = "text-info fw-bold blink";
             } else {
                 anchorLabel.innerText = "NO ANCHOR";
-                anchorLabel.className = "iso-text-muted";
+                anchorLabel.className = "text-secondary";
             }
         },
 
@@ -783,16 +707,16 @@ function qrq_isochronic_engine_shortcode() {
         showInterceptions() {
             const list = document.getElementById('interceptions-list');
             if(this.state.interceptions.length === 0) {
-                list.innerHTML = '<p class="iso-text-muted text-center p-4">No intercepted works found.</p>';
+                list.innerHTML = '<p class="text-secondary text-center p-4">No intercepted works found.</p>';
             } else {
                 list.innerHTML = this.state.interceptions.map((item, idx) => `
-                    <div class="iso-border p-3 mb-3 rounded iso-card">
+                    <div class="border border-secondary p-3 mb-3 rounded bg-dark">
                         <div class="d-flex justify-content-between align-items-center mb-2">
                             <h6 class="text-info fw-bold mb-0">${item.title}</h6>
-                            <span class="small iso-text-muted">${item.time}</span>
+                            <span class="small text-secondary">${item.time}</span>
                         </div>
-                        <p class="small iso-text mb-2" style="font-family: 'JetBrains Mono'; font-size: 0.8rem; line-height: 1.4;">${item.snippet}</p>
-                        <div class="d-flex gap-2 border-top iso-border pt-2 mt-2">
+                        <p class="small text-light mb-2" style="font-family: 'JetBrains Mono'; font-size: 0.8rem; line-height: 1.4;">${item.snippet}</p>
+                        <div class="d-flex gap-2 border-top border-secondary pt-2 mt-2">
                             <a href="${item.url}" target="_blank" class="btn btn-sm btn-outline-warning fw-bold"><i class="fas fa-external-link-alt me-2"></i>VISIT SOURCE</a>
                             <button class="btn btn-sm btn-outline-danger" onclick="app.removeInterception(${idx})"><i class="fas fa-trash"></i></button>
                         </div>
@@ -941,7 +865,7 @@ function qrq_isochronic_engine_shortcode() {
             const entry = document.createElement('div');
             entry.className = 'diag-entry';
             let altHtml = alts.length > 0 ? `<span class="diag-alt">Alts: ${alts.join(', ')}</span>` : '';
-            entry.innerHTML = `<span class="text-info">[${time}]</span> <strong class="iso-text">${label}:</strong> ${msg} ${altHtml}`;
+            entry.innerHTML = `<span class="text-info">[${time}]</span> <strong>${label}:</strong> ${msg} ${altHtml}`;
             term.prepend(entry);
         },
 
@@ -1087,7 +1011,7 @@ function qrq_isochronic_engine_shortcode() {
                         <span class="badge ${d.influence === 'literal' ? 'bg-danger' : 'bg-secondary'} border border-dark ms-1" style="font-size: 0.55rem;">
                             ${d.influence === 'literal' ? 'LITERAL' : 'ESSENCE'}
                         </span>
-                        <div class="iso-text-muted" style="font-size: 0.65rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;">
+                        <div class="text-secondary" style="font-size: 0.65rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px;">
                             ${d.context || 'No specific context.'}
                         </div>
                     </div>
