@@ -15,10 +15,6 @@ class MelleVR_Blueprint_Core {
         add_action( 'save_post_blueprint', [ $this, 'save_blueprint_meta_data' ] );
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_scripts_styles' ] );
         add_filter( 'template_include', [ $this, 'load_blueprint_template' ], 99 );
-
-        // Admin Settings & AJAX
-        add_action( 'admin_menu', [ $this, 'add_admin_menu' ] );
-        add_action( 'admin_init', [ $this, 'settings_init' ] );
         
         // Story Generation Hooks
         add_action( 'wp_ajax_blueprint_generate_story', [ $this, 'handle_blueprint_generation' ] );
@@ -71,7 +67,6 @@ class MelleVR_Blueprint_Core {
             'hierarchical'       => false,
             'menu_position'      => null,
             'menu_icon'          => 'dashicons-admin-site-alt3',
-            // ADDED 'author' and 'editor' to assign to users and save content natively
             'supports'           => [ 'title', 'editor', 'thumbnail', 'author', 'custom-fields' ],
         ];
 
@@ -411,43 +406,13 @@ class MelleVR_Blueprint_Core {
         return $template;
     }
 
-    public function add_admin_menu() {
-        add_submenu_page( 'edit.php?post_type=blueprint', 'Blueprint Settings', 'Settings', 'manage_options', 'blueprint-settings', [ $this, 'settings_page_html' ] );
-    }
-
-    public function settings_init() {
-        register_setting( 'blueprint_settings_group', 'blueprint_gemini_api_key' );
-        add_settings_section( 'blueprint_api_section', 'API Configuration', null, 'blueprint-settings' );
-        add_settings_field( 'blueprint_gemini_api_key', 'Gemini API Key', [ $this, 'render_api_key_field' ], 'blueprint-settings', 'blueprint_api_section' );
-    }
-
-    public function render_api_key_field() {
-        $api_key = get_option( 'blueprint_gemini_api_key' );
-        echo '<input type="password" name="blueprint_gemini_api_key" value="' . esc_attr( $api_key ) . '" size="50" />';
-        echo '<p class="description">Required for AI Story Generation.</p>';
-    }
-
-    public function settings_page_html() {
-        if ( ! current_user_can( 'manage_options' ) ) return;
-        ?>
-        <div class="wrap">
-            <h1>Quantum Telegraph: Blueprint Settings</h1>
-            <form action="options.php" method="post">
-                <?php
-                settings_fields( 'blueprint_settings_group' );
-                do_settings_sections( 'blueprint-settings' );
-                submit_button();
-                ?>
-            </form>
-        </div>
-        <?php
-    }
-
+    // ==========================================
+    // 5. UNIFIED API CALLS (Using Core Settings Key)
+    // ==========================================
     public function handle_blueprint_generation() {
-        $api_key = get_option( 'blueprint_gemini_api_key' );
-        if ( empty( $api_key ) ) $api_key = get_option( 'melle_vr_gemini_api_key' ); 
+        $api_key = get_option( 'melle_vr_gemini_api_key' ); 
 
-        if ( empty( $api_key ) ) wp_send_json_error( 'API Key missing in settings.' );
+        if ( empty( $api_key ) ) wp_send_json_error( 'API Key missing in Core Settings.' );
 
         $prompt = isset( $_POST['prompt'] ) ? sanitize_textarea_field( wp_unslash( $_POST['prompt'] ) ) : '';
         if ( empty( $prompt ) ) wp_send_json_error( 'No prompt provided.' );
@@ -478,10 +443,9 @@ class MelleVR_Blueprint_Core {
     }
 
     public function handle_audio_script_generation() {
-        $api_key = get_option( 'blueprint_gemini_api_key' );
-        if ( empty( $api_key ) ) $api_key = get_option( 'melle_vr_gemini_api_key' ); 
+        $api_key = get_option( 'melle_vr_gemini_api_key' ); 
 
-        if ( empty( $api_key ) ) wp_send_json_error( 'API Key missing in settings.' );
+        if ( empty( $api_key ) ) wp_send_json_error( 'API Key missing in Core Settings.' );
 
         $play_text = isset( $_POST['play_text'] ) ? sanitize_textarea_field( wp_unslash( $_POST['play_text'] ) ) : '';
         if ( empty( $play_text ) ) wp_send_json_error( 'No play text provided.' );
@@ -523,8 +487,7 @@ class MelleVR_Blueprint_Core {
     }
 
     public function handle_rune_word_generation() {
-        $api_key = get_option( 'blueprint_gemini_api_key' );
-        if ( empty( $api_key ) ) $api_key = get_option( 'melle_vr_gemini_api_key' ); 
+        $api_key = get_option( 'melle_vr_gemini_api_key' ); 
         
         $letters = isset( $_POST['letters'] ) ? sanitize_text_field( $_POST['letters'] ) : '';
 

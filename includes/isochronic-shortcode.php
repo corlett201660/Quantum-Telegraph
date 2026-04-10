@@ -311,13 +311,12 @@ function melle_vr_isochronic_shortcode() {
             </div>
         </div>
 
-        <div id="launch-btn-container" class="position-fixed bottom-0 start-50 translate-middle-x mb-4 d-none" style="z-index: 1050;">
-            <button id="launch-btn" class="btn btn-info btn-lg px-5 fw-bold shadow-lg" style="box-shadow: 0 0 20px var(--cyan) !important;" onclick="app.openStream()">LAUNCH STREAM</button>
-        </div>
+        <div id="launch-btn-container" class="position-fixed bottom-0 start-50 translate-middle-x mb-4 d-none" style="z-index: 1050;"></div>
 
         <div class="modal fade" id="streamModal" tabindex="-1" data-bs-backdrop="static">
             <div class="modal-dialog modal-fullscreen"><div class="modal-content bg-black border-0">
                 <div class="position-absolute top-0 end-0 p-3" style="z-index: 2000;">
+                    <button class="btn btn-outline-warning btn-sm fw-bold me-2" onclick="app.triggerCheckpoint()"><i class="fas fa-hand-paper me-1"></i> MANUAL CHECKPOINT</button>
                     <button class="btn btn-outline-info btn-sm fw-bold me-2" onclick="app.manualAdvance()">NEXT MESSAGE <i class="fas fa-forward"></i></button>
                     <button class="btn btn-outline-light btn-sm fw-bold" onclick="app.closeStream()">EXIT</button>
                 </div>
@@ -334,10 +333,12 @@ function melle_vr_isochronic_shortcode() {
             </div>
             <div id="full-geo-map" style="width:100%; height:100%;"></div>
         </div>
-    </div> <script>
+    </div> 
+    
+    <script>
     document.body.classList.add('isochronic-active');
 
-    const CONFIG = { API_KEY: "AIzaSyCGxdg_TGMaUAYQ_kr-HejCpeZ5zTY8O64", MODEL: "gemini-2.5-flash" };
+    const ajaxurl = '<?php echo admin_url("admin-ajax.php"); ?>';
     let streamModal, nodeEditorModal, lexiconEditorModal, html5QrCode;
 
     setTimeout(() => {
@@ -370,7 +371,6 @@ function melle_vr_isochronic_shortcode() {
         },
 
         init() {
-            // --- SESSION DATA MANAGER ---
             const hasWaypoints = !!localStorage.getItem('iso_waypoints');
             const hasLexicon = !!localStorage.getItem('iso_lexicon');
             const hasInterceptions = !!localStorage.getItem('iso_interceptions');
@@ -392,7 +392,6 @@ function melle_vr_isochronic_shortcode() {
                     localStorage.removeItem('iso_lexicon');
                     localStorage.removeItem('iso_interceptions');
                     sessionBox.style.display = 'none';
-                    // Uncheck so they don't get saved back when start happens
                     if(document.getElementById('importWaypoints')) document.getElementById('importWaypoints').checked = false;
                     if(document.getElementById('importLexiconData')) document.getElementById('importLexiconData').checked = false;
                     if(document.getElementById('importInterceptions')) document.getElementById('importInterceptions').checked = false;
@@ -400,17 +399,14 @@ function melle_vr_isochronic_shortcode() {
             });
 
             btnInit.addEventListener('click', () => {
-                // Clear any unselected toggle data
                 if (hasWaypoints && !document.getElementById('importWaypoints').checked) localStorage.removeItem('iso_waypoints');
                 if (hasLexicon && !document.getElementById('importLexiconData').checked) localStorage.removeItem('iso_lexicon');
                 if (hasInterceptions && !document.getElementById('importInterceptions').checked) localStorage.removeItem('iso_interceptions');
 
-                // Load remaining approved state
                 this.loadState(); 
                 this.loadLexiconState(); 
                 this.loadInterceptionsState(); 
                 
-                // Quantum Telegraph Game Target URL link check
                 const interceptedUrl = localStorage.getItem('iso_target_url');
                 if (interceptedUrl) {
                     document.getElementById('manual-url').value = interceptedUrl;
@@ -420,7 +416,6 @@ function melle_vr_isochronic_shortcode() {
                 document.getElementById('reflexMode').onchange = (e) => this.state.reflex = e.target.checked;
                 document.getElementById('autoPilotMode').onchange = (e) => this.state.autoPilotActive = e.target.checked;
                 
-                // Provide a default fallback lexicon if completely empty
                 if(Object.keys(this.state.lexicon).length === 0) {
                     this.state.lexicon = { 
                         "coherence": { weight: 20, context: "State of synchrony", influence: "essence" }, 
@@ -1116,22 +1111,36 @@ function melle_vr_isochronic_shortcode() {
             `;
 
             try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.MODEL}:generateContent?key=${CONFIG.API_KEY}`, {
-                    method: "POST", headers: {"Content-Type":"application/json"},
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                const formData = new FormData();
+                formData.append('action', 'blueprint_generate_story');
+                formData.append('prompt', prompt);
+
+                const res = await fetch(ajaxurl, {
+                    method: "POST",
+                    body: formData
                 });
+                
+                if (!res.ok) throw new Error(`Server Error: ${res.status}`);
+                
                 const data = await res.json();
-                const text = data.candidates[0].content.parts[0].text;
+                
+                if (!data.success) throw new Error(data.data || 'Generation failed');
+                
+                const text = data.data.story;
                 
                 this.state.narrativeHistory.push(text);
                 if(this.state.narrativeHistory.length > this.state.maxHistory) this.state.narrativeHistory.shift();
 
                 this.processText(text);
-                this.logDiag("API Buffer Refreshed", "Content synthesized via Influence Engine (Essence vs Literal).");
+                this.logDiag("API Buffer Refreshed", "Content synthesized via Influence Engine.");
                 
-                document.getElementById('launch-btn-container').classList.remove('d-none');
+                // Auto-start the stream if it hasn't been launched yet
+                if (!this.state.playing) {
+                    this.openStream();
+                }
             } catch(e) { 
-                this.logDiag("API Sync Failure", "Generation failed"); 
+                this.logDiag("API Sync Failure", e.message); 
+                console.error("Full Generation Error:", e);
             }
             finally { 
                 this.state.loading = false; 
@@ -1159,7 +1168,25 @@ function melle_vr_isochronic_shortcode() {
             this.state.playing = true; 
             document.getElementById('launch-btn-container').classList.add('d-none'); 
             streamModal.show(); 
-            setTimeout(() => this.streamLoop(), 800); 
+            
+            // Instantly open the checkpoint to start off before streaming begins
+            setTimeout(() => {
+                this.triggerCheckpoint(true);
+            }, 600); 
+        },
+
+        triggerCheckpoint(isInitial = false) {
+            if (!this.state.playing) return;
+            this.state.isLocked = true;
+            if (window.speechSynthesis) window.speechSynthesis.cancel();
+            if (this.state.fallbackTimer) clearTimeout(this.state.fallbackTimer);
+            
+            document.getElementById('checkpointOverlay').style.display = 'flex';
+            this.logDiag("System", isInitial === true ? "Initial Neural Checkpoint Established." : "Manual Neural Checkpoint Triggered.");
+            
+            if (this.state.autoPilotActive) {
+                this.startAutoPilotCountdown();
+            }
         },
 
         manualAdvance() {
@@ -1255,12 +1282,22 @@ function melle_vr_isochronic_shortcode() {
             Return ONLY valid JSON.`;
 
             try {
-                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.MODEL}:generateContent?key=${CONFIG.API_KEY}`, {
-                    method: "POST", headers: {"Content-Type":"application/json"},
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                const formData = new FormData();
+                formData.append('action', 'blueprint_generate_story');
+                formData.append('prompt', prompt);
+
+                const res = await fetch(ajaxurl, {
+                    method: "POST",
+                    body: formData
                 });
+                
+                if (!res.ok) throw new Error(`Server Error: ${res.status}`);
+                
                 const data = await res.json();
-                const cleanJson = data.candidates[0].content.parts[0].text.replace(/```json|```/g, "").trim();
+                
+                if (!data.success) throw new Error(data.data || 'Generation failed');
+
+                const cleanJson = data.data.story.replace(/```json|```/g, "").trim();
                 const adjustment = JSON.parse(cleanJson);
 
                 Object.entries(adjustment.weights).forEach(([word, wt]) => this.commitWord(word, wt, "AutoPilot Weight Shift"));
@@ -1269,7 +1306,8 @@ function melle_vr_isochronic_shortcode() {
                 this.logDiag("Auto Pilot", `Goal aligned: ${goal}`);
                 this.commitCheckpoint();
             } catch (e) {
-                this.logDiag("Auto Pilot Error", "Gemini synchronization failed.");
+                this.logDiag("Auto Pilot Error", e.message);
+                console.error("AutoPilot Error:", e);
                 this.commitCheckpoint();
             }
         },
